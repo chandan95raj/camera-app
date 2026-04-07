@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Pro</title>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #8b5cf6;
+            --danger: #ef4444;
+            --bg: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 520px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2rem;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            text-align: center;
+            opacity: 0.6;
+            margin-bottom: 20px;
+        }
+
+        /* CAMERA */
+        .camera-box {
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+            aspect-ratio: 3/4;
+            background: black;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .flash {
+            position: absolute;
+            inset: 0;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .flash.active {
+            animation: flash 0.3s;
+        }
+
+        @keyframes flash {
+            0% {
+                opacity: 0.8;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        /* CONTROLS */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: none;
+            cursor: pointer;
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-shutter {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: white;
+            border: 6px solid rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-shutter:active {
+            transform: scale(0.9);
+        }
+
+        /* GALLERY */
+        .gallery-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .photo-card {
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            position: relative;
+        }
+
+        .photo-card img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+        }
+
+        .card-btns {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 5px;
+        }
+
+        .icon-btn {
+            background: none;
+            color: white;
+        }
+
+        .icon-btn:hover {
+            color: var(--danger);
+        }
+
+        /* MODAL */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 12px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Camera Pro</h1>
+        <div class="subtitle">Capture • Save • Manage</div>
+
+        <div class="camera-box">
+            <video id="video" autoplay playsinline></video>
+            <div class="flash" id="flash"></div>
+            <canvas id="canvas" hidden></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="btn-primary" id="startBtn">
+                <i data-lucide="camera"></i> Start
+            </button>
+
+            <button class="btn-shutter" id="shutterBtn" style="display:none;">
+                <i data-lucide="aperture" style="color:black"></i>
+            </button>
+
+            <button class="btn-primary" id="switchBtn" style="display:none;">
+                <i data-lucide="refresh-cw"></i>
+            </button>
+        </div>
+
+        <div class="gallery-header">
+            <h3>Gallery (<span id="count">0</span>)</h3>
+            <button class="btn-danger" onclick="clearGallery()">Clear</button>
+        </div>
+
+        <div class="gallery-grid" id="gallery"></div>
+    </div>
+
+    <!-- MODAL -->
+    <div class="modal" id="modal" onclick="closeModal()">
+        <img id="modalImg">
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const gallery = document.getElementById('gallery');
+        const countEl = document.getElementById('count');
+        const flash = document.getElementById('flash');
+
+        let stream = null;
+        let facing = "user";
+
+        function initIcons() {
+            if (window.lucide) lucide.createIcons();
+        }
+
+        async function startCamera() {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: facing }
+                });
+
+                video.srcObject = stream;
+
+                startBtn.style.display = "none";
+                shutterBtn.style.display = "flex";
+                switchBtn.style.display = "flex";
+
+            } catch (e) {
+                alert("Camera access denied ❌");
+            }
+        }
+
+        startBtn.onclick = startCamera;
+
+        switchBtn.onclick = () => {
+            facing = facing === "user" ? "environment" : "user";
+            startCamera();
+        };
+
+        shutterBtn.onclick = () => {
+            flash.classList.add("active");
+
+            const ctx = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+
+            const img = canvas.toDataURL();
+
+            const photos = JSON.parse(localStorage.getItem("snaps") || "[]");
+            photos.unshift({ id: Date.now(), src: img });
+
+            localStorage.setItem("snaps", JSON.stringify(photos));
+
+            setTimeout(() => flash.classList.remove("active"), 200);
+
+            renderGallery();
+        };
+
+        function renderGallery() {
+            const photos = JSON.parse(localStorage.getItem("snaps") || "[]");
+
+            countEl.innerText = photos.length;
+
+            gallery.innerHTML = photos.map(p => `
+        <div class="photo-card">
+            <img src="${p.src}" onclick="openModal('${p.src}')">
+            <div class="card-btns">
+                <button class="icon-btn" onclick="downloadImg('${p.src}')">
+                    <i data-lucide="download"></i>
+                </button>
+                <button class="icon-btn" onclick="deletePhoto(${p.id})">
+                    <i data-lucide="trash-2"></i>
+                </button>
+            </div>
+        </div>
+    `).join("");
+
+            initIcons();
+        }
+
+        function deletePhoto(id) {
+            if (!confirm("Delete this photo?")) return;
+
+            let photos = JSON.parse(localStorage.getItem("snaps") || "[]");
+            photos = photos.filter(p => p.id !== id);
+            localStorage.setItem("snaps", JSON.stringify(photos));
+            renderGallery();
+        }
+
+        function clearGallery() {
+            if (!confirm("Clear all photos?")) return;
+            localStorage.removeItem("snaps");
+            renderGallery();
+        }
+
+        function downloadImg(src) {
+            const a = document.createElement("a");
+            a.href = src;
+            a.download = "snap.png";
+            a.click();
+        }
+
+        function openModal(src) {
+            document.getElementById("modalImg").src = src;
+            document.getElementById("modal").classList.add("active");
+        }
+
+        function closeModal() {
+            document.getElementById("modal").classList.remove("active");
+        }
+
+        window.onload = () => {
+            renderGallery();
+            initIcons();
+        };
+    </script>
+
+</body>
+
+</html>
